@@ -38,6 +38,13 @@ const staffRoleId = process.env.STAFF_ROLE_ID;
 const WL_ID = process.env.WL_ID;
 const WELCOME_CHANNEL_ID = process.env.WELCOME_CHANNEL_ID;
 
+// ✅ Global Button Styles
+const validStyles = {
+  primary: ButtonStyle.Primary,
+  secondary: ButtonStyle.Secondary,
+  success: ButtonStyle.Success,
+  danger: ButtonStyle.Danger,
+};
 // ───────────────────────────────
 // 🧾 Slash commands
 // ───────────────────────────────
@@ -149,9 +156,14 @@ client.on("interactionCreate", async interaction => {
     if (interaction.isChatInputCommand() && interaction.commandName === "spacer") {
       const length = interaction.options.getString("length");
       const spacer = length === "long" ? "\u200B\n".repeat(30) : "\u200B";
-      await interaction.channel.send(spacer);
-      return interaction.reply({ content: `✅ ${length} spacer added!`, ephemeral: true });
+
+      await interaction.channel.send(spacer); // send message to channel
+
+      if (!interaction.replied) {
+        await interaction.reply({ content: `✅ ${length} spacer added!`, flags: 64 }); // ephemeral
+      }
     }
+
 
     // ───────────── /say
     if (interaction.isChatInputCommand() && interaction.commandName === "say") {
@@ -246,6 +258,93 @@ client.on("interactionCreate", async interaction => {
 
       await interaction.message.edit({ content: updated, components });
       return interaction.reply({ content: `✅ Status updated to **${status}**.`, ephemeral: true });
+    }
+    // /ticketbutton
+    if (interaction.isChatInputCommand() && interaction.commandName === "ticketbutton") {
+      const buttons = [];
+      const buttonCategories = {};
+
+      for (let i = 1; i <= 3; i++) {
+        const color = interaction.options.getString(`color${i}`);
+        const label = interaction.options.getString(`label${i}`);
+        const emoji = interaction.options.getString(`emoji${i}`);
+        const category = interaction.options.getChannel(`category${i}`);
+
+        if (i === 1 && !color) return interaction.reply({ content: "Button 1 must have a color!", ephemeral: true });
+        if (!color && !label && !emoji) continue;
+
+        const style = validStyles[color?.toLowerCase()] || ButtonStyle.Primary;
+        const btn = new ButtonBuilder().setCustomId(`ticket_create_${i}`).setLabel(label || `Ticket ${i}`).setStyle(style);
+        if (emoji) btn.setEmoji(emoji);
+        buttons.push(btn);
+
+        if (category) buttonCategories[`ticket_create_${i}`] = category.id;
+      }
+
+      if (!buttons.length) return interaction.reply({ content: "No buttons were configured!", ephemeral: true });
+
+      const row = new ActionRowBuilder().addComponents(buttons);
+      interaction.client.ticketButtonCategories = buttonCategories;
+
+      await interaction.reply({ content: "✅ Ticket panel sent!", ephemeral: true });
+      await interaction.channel.send({ components: [row] });
+    }
+
+    // Ticket create
+    else if (interaction.isButton() && interaction.customId.startsWith("ticket_create_")) {
+      const categoryId = interaction.client.ticketButtonCategories?.[interaction.customId];
+      if (!categoryId) return interaction.reply({ content: "No category set for this button.", ephemeral: true });
+
+      // Prevent duplicate tickets
+      const existing = interaction.guild.channels.cache.find(
+        c => c.name === `ticket-${interaction.user.username.toLowerCase()}`
+      );
+      if (existing) {
+        return interaction.reply({ content: "❌ You already have a ticket!", ephemeral: true });
+      }
+
+      const ticketChannel = await interaction.guild.channels.create({
+        name: `ticket-${interaction.user.username}`,
+        type: 0,
+        parent: categoryId,
+        permissionOverwrites: [
+          { id: interaction.guild.roles.everyone, deny: ["ViewChannel"] },
+          { id: interaction.user.id, allow: ["ViewChannel", "SendMessages", "ReadMessageHistory"] },
+          { id: staffRoleId, allow: ["ViewChannel", "SendMessages", "ReadMessageHistory"] },
+        ],
+      });
+
+
+      const staffRole = interaction.guild.roles.cache.get(staffRoleId);
+      const embed = new EmbedBuilder()
+        .setTitle("thank you for opening a ticket!")
+        .setDescription("> _ _  hi there! a staff member will be here soon!\n type `.start` to begin!")
+        .addFields(
+          { name: "customer", value: `<@${interaction.user.id}>`, inline: true }
+        )
+      
+        .setColor(0x36393f)
+        .setImage("https://cdn.discordapp.com/attachments/1427657618008047621/1428616052152991744/ei_1760678820069-removebg-preview.png?ex=68f3cea1&is=68f27d21&hm=715e94744bb7c42a3289fc6dade894ba354d6b1cf0056b6a6ff0a6b83ef2da17");
+
+      const closeButton = new ButtonBuilder().setCustomId("ticket_close").setLabel("Close Ticket").setStyle(ButtonStyle.Danger);
+      const row = new ActionRowBuilder().addComponents(closeButton);
+
+      await ticketChannel.send({ content: `${staffRole} <@${interaction.user.id}>`, embeds: [embed], components: [row] });
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content: `✅ Ticket created: ${ticketChannel}`, ephemeral: true });
+      } else {
+        await interaction.reply({ content: `✅ Ticket created: ${ticketChannel}`, ephemeral: true });
+      }
+    
+    }
+
+    // Ticket close
+    else if (interaction.isButton() && interaction.customId === "ticket_close") {
+      if (!interaction.member.roles.cache.has(staffRoleId))
+        return interaction.reply({ content: "🚫 You don’t have permission to close this ticket.", ephemeral: true });
+
+      await interaction.reply({ content: "🗑️ Closing ticket in 3 seconds...", ephemeral: true });
+      setTimeout(() => interaction.channel.delete().catch(console.error), 3000);
     }
 
     // ───────────── /prices
