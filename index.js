@@ -156,9 +156,93 @@ client.on("interactionCreate", async interaction => {
       success: ButtonStyle.Success,
       danger: ButtonStyle.Danger,
     };
+    if (interaction.isChatInputCommand() && interaction.commandName === "ticketbutton") {
+      const buttons = [];
 
+      for (let i = 1; i <= 3; i++) {
+        const color = interaction.options.getString(`color${i}`);
+        const label = interaction.options.getString(`label${i}`) || `Ticket ${i}`;
+        const emoji = interaction.options.getString(`emoji${i}`);
+
+        if (!color && i === 1) continue; // button 1 requires color
+        if (color || label || emoji) {
+          const style = validStyles[color?.toLowerCase()] || ButtonStyle.Primary;
+          const button = new ButtonBuilder()
+            .setCustomId(`ticket_create_${i}`)
+            .setLabel(label)
+            .setStyle(style);
+          if (emoji) button.setEmoji(emoji);
+          buttons.push(button);
+        }
+      }
+
+      const row = new ActionRowBuilder().addComponents(buttons);
+
+      await interaction.reply({ content: "✅ Ticket panel created!", ephemeral: true });
+      await interaction.channel.send({
+        content: "🎟️ **Click a button below to create a ticket:**",
+        components: [row],
+      });
+    }
+
+    // 🆕 Ticket creation
+    else if (interaction.isButton() && interaction.customId.startsWith("ticket_create_")) {
+      const existing = interaction.guild.channels.cache.find(
+        c => c.name === `ticket-${interaction.user.username.toLowerCase()}`
+      );
+      if (existing)
+        return interaction.reply({ content: "❌ You already have an open ticket!", ephemeral: true });
+
+      const ticketChannel = await interaction.guild.channels.create({
+        name: `ticket-${interaction.user.username}`,
+        type: 0, // GUILD_TEXT
+        parent: categoryId,
+        permissionOverwrites: [
+          { id: interaction.guild.roles.everyone, deny: ["ViewChannel"] },
+          { id: interaction.user.id, allow: ["ViewChannel", "SendMessages", "ReadMessageHistory"] },
+          { id: staffRoleId, allow: ["ViewChannel", "SendMessages", "ReadMessageHistory"] },
+        ],
+      });
+
+      const staffRole = interaction.guild.roles.cache.get(staffRoleId);
+
+      const embed = new EmbedBuilder()
+        .setTitle("🎟️ Support Ticket")
+        .setDescription(
+          `Hello ${interaction.user}, a staff member will assist you shortly.\n\nStaff ${staffRole} has been notified.`
+        )
+        .addFields(
+          { name: "Opened by", value: `<@${interaction.user.id}>`, inline: true },
+          { name: "Staff Role", value: `${staffRole}`, inline: true }
+        )
+        .setColor("Blue")
+        .setTimestamp();
+
+      const closeButton = new ButtonBuilder()
+        .setCustomId("ticket_close")
+        .setLabel("Close Ticket")
+        .setStyle(ButtonStyle.Danger);
+
+      const row = new ActionRowBuilder().addComponents(closeButton);
+
+      await ticketChannel.send({ content: `${staffRole}`, embeds: [embed], components: [row] });
+      await interaction.reply({ content: `✅ Ticket created: ${ticketChannel}`, ephemeral: true });
+    }
+
+    // 🗑️ Close ticket
+    else if (interaction.isButton() && interaction.customId === "ticket_close") {
+      if (!interaction.member.roles.cache.has(staffRoleId)) {
+        return interaction.reply({
+          content: "🚫 You don’t have permission to close this ticket.",
+          ephemeral: true,
+        });
+      }
+
+      await interaction.reply({ content: "🗑️ Closing ticket in 3 seconds...", ephemeral: true });
+      setTimeout(() => interaction.channel.delete().catch(console.error), 3000);
+    }
     // Spacer command
-    if (interaction.isChatInputCommand() && interaction.commandName === "spacer") {
+    else if (interaction.isChatInputCommand() && interaction.commandName === "spacer") {
       const length = interaction.options.getString("length");
       let spacer = "\u200B";
       if (length === "long") spacer = "\u200B\n".repeat(30);
