@@ -37,6 +37,7 @@ const token = process.env.DISCORD_TOKEN;
 const staffRoleId = process.env.STAFF_ROLE_ID;
 const WL_ID = process.env.WL_ID;
 const WELCOME_CHANNEL_ID = process.env.WELCOME_CHANNEL_ID;
+const RECEIPT_CHANNEL_ID = process.env.RECEIPT_CHANNEL_ID;
 
 // ✅ Global Button Styles
 const validStyles = {
@@ -125,6 +126,19 @@ const commands = [
     .setName("prices")
     .setDescription("Show pricing options dropdown")
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
+    // Receipt (admin only)
+  new SlashCommandBuilder()
+  .setName("receipt")
+  .setDescription("sent receipt in ticket and receipt channel")
+  .addUserOption(o => o.setName("user").setDescription("Customer").setRequired(true))
+  .addStringOption(o => o.setName("order").setDescription("items ordered").setRequired(true))
+  .addIntegerOption(o => o.setName("revisions").setDescription("total changes").setRequired(true))
+  .addStringOption(o => o.setName("mop").setDescription("Method of payment").setRequired(true))
+  .addStringOption(o => o.setName("altprice").setDescription("value in other mop").setRequired(true))
+  .addStringOption(o => o.setName("started").setDescription("mm.dd.yy").setRequired(true))
+  .addStringOption(o => o.setName("finished").setDescription("mm.dd.yy").setRequired(true))
+  .addIntegerOption(o => o.setName("id").setDescription("customer id").setRequired(true)),
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 ];
 
 // ───────────────────────────────
@@ -206,7 +220,50 @@ client.on("interactionCreate", async interaction => {
       await interaction.channel.send({ embeds: [embed] });
       return interaction.reply({ content: "✅ Embed created!", ephemeral: true });
     }
+// ───────────── /receipt
+        if (interaction.isChatInputCommand() && interaction.commandName === "receipt") {
+          if (!interaction.member.roles.cache.has(staffRoleId)) {
+            return interaction.reply({ content: "🚫 You do not have permission to use this command.", ephemeral: true });
+          }
 
+          const recChannel = interaction.guild.channels.cache.get(RECEIPT_CHANNEL_ID);
+          if (!recChannel?.isTextBased()) return interaction.reply({ content: "❌ receipt channel not found.", ephemeral: true });
+
+    const user = interaction.options.getUser("user");
+          const order = interaction.options.getString("order");
+          const revisions = interaction.options.getInteger("revisions");
+          const mop = interaction.options.getString("mop");
+          const altprice = interaction.options.getString("altprice");
+          const startdate = interaction.options.getString("started");
+          const enddate = interaction.options.getString("finished");
+          const id = interaction.options.getInteger("id");
+
+    // force every line of order to start with >
+    const formattedOrder = order
+      .trim()
+      .split(/\n+/)
+    .map(line => line.trim() ? `> ${line.trim()}` : '>')
+      .join('\n');
+
+    const receipt = `_ _ 　  ✦　　.　　𓂀　　.　　✧
+    _ _　 　꒰ ◜　\`🧾\`　◝ ꒱　⁺　**${user}**'s ◟
+    _ _　         ◍　˚  \`💬\`　࿓　order receipt
+    _ _ 　  ˚　　 .　 　\`📦\`　　˚　 　 .　　 ˚
+    _ _　   ⨀ 𓄹 ⨀　⏑⏑　overall　**order**
+    ${formattedOrder}
+
+    _ _　   · 𐙚 ·´　\`📝\`　｡　Ⴢ　revisions: ${revisions}
+    _ _　　 ⁺　\`🐾\`　𓐆　˚　ฅ　payment: ${mop}
+    _ _　　 ⁺　\`🗯\`　𓐆　˚　Ⴢ　alternate price: ${altprice}
+    _ _ 　  ˚　　 .　 　\`🪾\`　　˚　 　 .　　 ˚
+    -# _ _　　꙳ 𓊝 ꙳　date started: ${startdate}
+    -# _ _　　꙳ 𓆸 ꙳　date finished: ${enddate}
+    _ _ 　  ⨀　𓄹　⨀　id: ${id}
+    _ _ 　  ✿　　.　　✦　　.　　˚`;
+
+     await recChannel.send({ content: receipt });
+          return interaction.reply({ content: receipt, ephemeral: false });
+        }
     // ───────────── /waitlist
     if (interaction.isChatInputCommand() && interaction.commandName === "waitlist") {
       if (!interaction.member.roles.cache.has(staffRoleId)) {
