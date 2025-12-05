@@ -58,9 +58,9 @@ const commands = [
     .setDescription("Create a ticket panel with up to 3 buttons")
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addStringOption(o => o.setName("label1").setDescription("Color for Button 1").setRequired(true))
+  .addChannelOption(o => o.setName("category1").setDescription("Category for Button 1").addChannelTypes(ChannelType.GuildCategory).setRequired(true))
     .addStringOption(o => o.setName("desc1").setDescription("Label for Button 1"))
     .addStringOption(o => o.setName("emoji1").setDescription("Emoji for Button 1"))
-    .addChannelOption(o => o.setName("category1").setDescription("Category for Button 1").addChannelTypes(ChannelType.GuildCategory))
   .addStringOption(o => o.setName("label2").setDescription("Color for Button 2"))
   .addStringOption(o => o.setName("desc2").setDescription("Label for Button 2"))
     .addStringOption(o => o.setName("emoji2").setDescription("Emoji for Button 2"))
@@ -852,19 +852,20 @@ _ _ 　  ✿　　.　　✦　　.　　˚`;
         });
 
         // Send transcript to a log channel (replace with your log channel ID)
-        const logChannelId = "1445580720839069696"; // Set this to your transcript log channel
+        const logChannelId = "YOUR_LOG_CHANNEL_ID"; // Set this to your transcript log channel
         const logChannel = interaction.guild.channels.cache.get(logChannelId);
 
         if (logChannel) {
           const transcriptEmbed = new EmbedBuilder()
             .setTitle("📋 Ticket Closed")
-            .setDescription(`Ticket: ${interaction.channel.name}`)
+            .setDescription(`Ticket: ${interaction.channel.name}\n\n**[Click here to view transcript](attachment://transcript-${interaction.channel.name}-${Date.now()}.html)**`)
             .addFields(
               { name: "Closed by", value: `${interaction.user.tag}`, inline: true },
-              { name: "Messages", value: `${sortedMessages.size}`, inline: true },
+              { name: "Messages", value: `${sortedMessages.length}`, inline: true },
               { name: "Date", value: `${new Date().toLocaleString()}`, inline: true }
             )
             .setColor(0xff0000)
+            .setFooter({ text: "💡 Download the HTML file and open it in your browser to view the full transcript" })
             .setTimestamp();
 
           await logChannel.send({ 
