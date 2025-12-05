@@ -18,6 +18,7 @@ import {
   PermissionFlagsBits,
   ChannelType,
   StringSelectMenuBuilder,
+  AttachmentBuilder
 } from "discord.js";
 
 const client = new Client({
