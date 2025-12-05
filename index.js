@@ -344,36 +344,82 @@ _ _ 　  ✿　　.　　✦　　.　　˚`;
     // ───────────── Status select menu handler
     client.on("interactionCreate", async interaction => {
         if (!interaction.isStringSelectMenu() || interaction.customId !== "wait_status") return;
-        const selected = interaction.values[0];
-        const container = interaction.message.components[0];
 
-        // Update the text content (component at index 2)
-        const updatedComponents = container.components.map((component, index) => {
-            if (index === 2 && component.type === 10) {
-                return {
-                    ...component,
-                    content: component.content.replace(/status:\s*\w+/i, `status: ${selected}`)
-                };
+        try {
+            const selected = interaction.values[0];
+
+            // Rebuild the entire container from scratch to ensure proper structure
+            const item = interaction.message.components[0].components[2].content.match(/item:\s*([^\n]+)/)?.[1] || 'unknown';
+            const mop = interaction.message.components[0].components[2].content.match(/payment:\s*([^\n]+)/)?.[1] || 'unknown';
+
+            const updatedComponents = [
+                {
+                    type: 12,
+                    items: [{
+                        media: { url: "https://cdn.discordapp.com/attachments/1439498545106259969/1445927408778739892/ei_1764806262011-removebg-preview.png" },
+                        spoiler: false,
+                        description: null
+                    }]
+                },
+                {
+                    type: 12,
+                    items: [{
+                        media: { url: "https://cdn.discordapp.com/attachments/1439498545106259969/1445927468182667274/ecc8bc2b4d4847f9e7f0daeaffc3605e.jpg" }
+                    }]
+                },
+                {
+                    type: 10,
+                    content: `_ _ 　  ˚　　 .　 　\`💀\`　　˚　 　 .　　 ˚\n_ _　   ⨀ 𓄹 ⨀　⏑⏑　new　**order**\n_ _　   · 𐙚 ·´　\`🕸\`　｡　Ⴢ　item: ${item}\n_ _　　 ⁺　\`🦴\`　𓐆　˚　ฅ　payment: ${mop}\n_ _ 　  ˚　　 .　 　\`🗯\`　　˚　 　 .　　 ˚\n_ _　　꙳ 𓊝 ꙳　**status**: ${selected}\n_ _ 　  ✿　　.　　✦　　.　　˚`
+                },
+                {
+                    type: 12,
+                    items: [{
+                        media: { url: "https://cdn.discordapp.com/attachments/1439498545106259969/1445927408778739892/ei_1764806262011-removebg-preview.png" },
+                        spoiler: false,
+                        description: null
+                    }]
+                }
+            ];
+
+            // Only add select menu if not complete
+            if (selected !== "complete") {
+                updatedComponents.push({
+                    type: 1,
+                    components: [{
+                        type: 3,
+                        custom_id: "wait_status",
+                        placeholder: "⠀ ⠀ ⠀/ᐠ > . < ̥マ    ݂۫   status",
+                        options: [
+                            { label: "⃟", value: "paid", description: "𓏵۪۪　﹒　　 paid　𓏼", emoji: { id: "1445921537340211242", name: "unknown", animated: true } },
+                            { label: "⃟", value: "processing", description: "𓏫　⌣　　﹕　processing　𓈒　 ͝ །⠀⠀", emoji: { id: "1445919743788978367", name: "unknown" } },
+                            { label: "⃟", value: "complete", description: "◟ ͜  ︵◞◟　　﹕　complete　𓂃𓏼⁾⁾", emoji: { id: "1445921420327653417", name: "unknown", animated: true } }
+                        ]
+                    }]
+                });
+                updatedComponents.push({
+                    type: 14,
+                    spacing: 1,
+                    divider: true
+                });
             }
-            return component;
-        });
 
-        // If complete, remove the select menu (index 4) and divider (index 5)
-        if (selected === "complete") {
-            updatedComponents.splice(4, 2);
+            const newContainer = {
+                type: 17,
+                components: updatedComponents
+            };
+
+            await interaction.update({ 
+                components: [newContainer],
+                flags: 32768
+            });
+        } catch (error) {
+            console.error('Error handling select menu:', error);
+            await interaction.reply({ 
+                content: '❌ Error updating status', 
+                ephemeral: true 
+            }).catch(() => {});
         }
-
-        const newContainer = {
-            type: 17,
-            components: updatedComponents
-        };
-
-        await interaction.update({ 
-            components: [newContainer],
-            flags: 32768 // MessageFlags.IsComponentsV2
-        });
     });
-
     // ───────────── /ticket as SELECT MENU
     if (interaction.isChatInputCommand() && interaction.commandName === "ticket") {
       const ticketOptions = [];
