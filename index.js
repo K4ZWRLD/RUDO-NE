@@ -532,7 +532,7 @@ _ _ 　  ✿　　.　　✦　　.　　˚`;
     }
 
 
-    // ───────────── CLOSE BUTTON
+    // ───────────── CLOSE BUTTON WITH TRANSCRIPT
     if (interaction.isButton() && interaction.customId === "ticket_close") {
       if (!interaction.member.roles.cache.has(staffRoleId)) {
         return interaction.reply({ 
@@ -542,15 +542,353 @@ _ _ 　  ✿　　.　　✦　　.　　˚`;
       }
 
       await interaction.reply({ 
-        content: "🗑️ Closing ticket in 3 seconds...", 
+        content: "📝 Generating transcript and closing ticket...", 
         flags: 64
       });
 
-      setTimeout(() => {
-        interaction.channel.delete().catch(console.error);
-      }, 3000);
-    }
+      try {
+        // Fetch ALL messages from the ticket channel
+        let allMessages = [];
+        let lastMessageId;
 
+        // Keep fetching messages in batches of 100 until we have them all
+        while (true) {
+          const options = { limit: 100 };
+          if (lastMessageId) {
+            options.before = lastMessageId;
+          }
+
+          const messages = await interaction.channel.messages.fetch(options);
+          if (messages.size === 0) break;
+
+          allMessages.push(...messages.values());
+          lastMessageId = messages.last().id;
+
+          // If we got less than 100 messages, we've reached the end
+          if (messages.size < 100) break;
+        }
+
+        const sortedMessages = allMessages.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+
+        // Generate HTML transcript
+        const escapeHtml = (text) => {
+          return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+        };
+
+        let transcript = `<!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Ticket Transcript - ${interaction.channel.name}</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 20px;
+                min-height: 100vh;
+            }
+
+            .container {
+                max-width: 900px;
+                margin: 0 auto;
+                background: white;
+                border-radius: 12px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                overflow: hidden;
+            }
+
+            .header {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 30px;
+                text-align: center;
+            }
+
+            .header h1 {
+                font-size: 28px;
+                margin-bottom: 10px;
+            }
+
+            .header-info {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 15px;
+                margin-top: 20px;
+                text-align: left;
+            }
+
+            .info-item {
+                background: rgba(255,255,255,0.1);
+                padding: 12px;
+                border-radius: 8px;
+                backdrop-filter: blur(10px);
+            }
+
+            .info-label {
+                font-size: 12px;
+                opacity: 0.9;
+                margin-bottom: 5px;
+            }
+
+            .info-value {
+                font-size: 16px;
+                font-weight: 600;
+            }
+
+            .messages {
+                padding: 30px;
+            }
+
+            .message {
+                margin-bottom: 20px;
+                animation: fadeIn 0.3s ease-in;
+            }
+
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(10px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+
+            .message-header {
+                display: flex;
+                align-items: center;
+                margin-bottom: 8px;
+            }
+
+            .avatar {
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-weight: bold;
+                margin-right: 12px;
+                flex-shrink: 0;
+            }
+
+            .message-info {
+                flex: 1;
+            }
+
+            .username {
+                font-weight: 600;
+                color: #2c3e50;
+                font-size: 15px;
+            }
+
+            .timestamp {
+                font-size: 12px;
+                color: #95a5a6;
+                margin-left: 8px;
+            }
+
+            .message-content {
+                margin-left: 52px;
+                padding: 12px 16px;
+                background: #f8f9fa;
+                border-radius: 8px;
+                border-left: 3px solid #667eea;
+                color: #2c3e50;
+                line-height: 1.6;
+                word-wrap: break-word;
+            }
+
+            .embed {
+                margin-left: 52px;
+                margin-top: 8px;
+                padding: 12px 16px;
+                background: #e8f4f8;
+                border-radius: 8px;
+                border-left: 3px solid #3498db;
+                font-size: 14px;
+                color: #34495e;
+            }
+
+            .embed-title {
+                font-weight: 600;
+                margin-bottom: 5px;
+            }
+
+            .attachment {
+                margin-left: 52px;
+                margin-top: 8px;
+                padding: 10px 14px;
+                background: #fff3cd;
+                border-radius: 8px;
+                border-left: 3px solid #ffc107;
+                font-size: 13px;
+            }
+
+            .attachment a {
+                color: #856404;
+                text-decoration: none;
+                font-weight: 500;
+            }
+
+            .attachment a:hover {
+                text-decoration: underline;
+            }
+
+            .footer {
+                background: #f8f9fa;
+                padding: 20px;
+                text-align: center;
+                color: #6c757d;
+                font-size: 14px;
+                border-top: 1px solid #dee2e6;
+            }
+
+            .bot-tag {
+                display: inline-block;
+                background: #5865f2;
+                color: white;
+                font-size: 10px;
+                padding: 2px 6px;
+                border-radius: 4px;
+                margin-left: 6px;
+                font-weight: 600;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>🎫 Ticket Transcript</h1>
+                <div class="header-info">
+                    <div class="info-item">
+                        <div class="info-label">Ticket Channel</div>
+                        <div class="info-value">${escapeHtml(interaction.channel.name)}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Closed By</div>
+                        <div class="info-value">${escapeHtml(interaction.user.tag)}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Closed At</div>
+                        <div class="info-value">${new Date().toLocaleString()}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Total Messages</div>
+                        <div class="info-value">${sortedMessages.size}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="messages">`;
+
+        sortedMessages.forEach(msg => {
+          const timestamp = new Date(msg.createdTimestamp).toLocaleString();
+          const avatarLetter = msg.author.username.charAt(0).toUpperCase();
+          const botTag = msg.author.bot ? '<span class="bot-tag">BOT</span>' : '';
+
+          transcript += `
+                <div class="message">
+                    <div class="message-header">
+                        <div class="avatar">${avatarLetter}</div>
+                        <div class="message-info">
+                            <span class="username">${escapeHtml(msg.author.username)}${botTag}</span>
+                            <span class="timestamp">${timestamp}</span>
+                        </div>
+                    </div>`;
+
+          if (msg.content) {
+            transcript += `
+                    <div class="message-content">${escapeHtml(msg.content)}</div>`;
+          }
+
+          if (msg.embeds.length > 0) {
+            msg.embeds.forEach(embed => {
+              transcript += `
+                    <div class="embed">
+                        <div class="embed-title">📎 Embed${embed.title ? ': ' + escapeHtml(embed.title) : ''}</div>
+                        ${embed.description ? '<div>' + escapeHtml(embed.description.substring(0, 200)) + '...</div>' : ''}
+                    </div>`;
+            });
+          }
+
+          if (msg.attachments.size > 0) {
+            msg.attachments.forEach(att => {
+              transcript += `
+                    <div class="attachment">
+                        📎 <a href="${att.url}" target="_blank">${escapeHtml(att.name)}</a>
+                    </div>`;
+            });
+          }
+
+          transcript += `
+                </div>`;
+        });
+
+        transcript += `
+            </div>
+
+            <div class="footer">
+                Generated by Discord Ticket System • ${new Date().toLocaleString()}
+            </div>
+        </div>
+    </body>
+    </html>`;
+
+        // Create buffer for file upload
+        const buffer = Buffer.from(transcript, 'utf-8');
+        const attachment = new AttachmentBuilder(buffer, { 
+          name: `transcript-${interaction.channel.name}-${Date.now()}.html` 
+        });
+
+        // Send transcript to a log channel (replace with your log channel ID)
+        const logChannelId = "1445580720839069696"; // Set this to your transcript log channel
+        const logChannel = interaction.guild.channels.cache.get(logChannelId);
+
+        if (logChannel) {
+          const transcriptEmbed = new EmbedBuilder()
+            .setTitle("📋 Ticket Closed")
+            .setDescription(`Ticket: ${interaction.channel.name}`)
+            .addFields(
+              { name: "Closed by", value: `${interaction.user.tag}`, inline: true },
+              { name: "Messages", value: `${sortedMessages.size}`, inline: true },
+              { name: "Date", value: `${new Date().toLocaleString()}`, inline: true }
+            )
+            .setColor(0xff0000)
+            .setTimestamp();
+
+          await logChannel.send({ 
+            embeds: [transcriptEmbed], 
+            files: [attachment] 
+          });
+        }
+
+        // Delete the ticket channel after a delay
+        setTimeout(() => {
+          interaction.channel.delete().catch(console.error);
+        }, 3000);
+
+      } catch (error) {
+        console.error("Error generating transcript:", error);
+        await interaction.followUp({ 
+          content: "⚠️ Error generating transcript, but closing ticket anyway...", 
+          flags: 64 
+        });
+
+        setTimeout(() => {
+          interaction.channel.delete().catch(console.error);
+        }, 3000);
+      }
+    }
     // ───────────── /prices
     if (interaction.isChatInputCommand() && interaction.commandName === "prices") {
       const menu = new StringSelectMenuBuilder()
